@@ -1,23 +1,33 @@
-# fly.toml app configuration file generated for stockis on 2026-08-02T22:16:40Z
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
-
-app = 'stockis'
-primary_region = 'iad'
+app = "gscore-scan"          # change to whatever name fly launch assigns/you choose
+primary_region = "jnb"       # pick the region closest to the property; run `fly platform regions` to see options
 
 [build]
+
+[env]
+  PORT = "8080"
+  SESSION_DIR = "/data/sessions"
+  SESSION_TTL_HOURS = "24"
+  OCR_PROVIDER = "tesseract"
+
+[[mounts]]
+  source = "gscore_sessions"
+  destination = "/data"
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = 'stop'
+  auto_stop_machines = "suspend"
   auto_start_machines = true
-  min_machines_running = 0
-  processes = ['app']
+  min_machines_running = 1     # keep >=1 warm machine so in-progress scan sessions on local disk aren't lost to a cold stop
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "15s"
+    method = "GET"
+    timeout = "5s"
+    path = "/health"
 
 [[vm]]
-  memory = '1gb'
-  cpu_kind = 'shared'
-  cpus = 1
-  memory_mb = 256
+  size = "shared-cpu-1x"
+  memory = "512mb"
