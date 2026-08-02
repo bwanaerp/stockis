@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>GSCORE Stock-Take Scan Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<div id="app" data-auth-required="{{ 'true' if auth_required else 'false' }}" data-already-authed="{{ 'true' if already_authed else 'false' }}">
+
+  <!-- ============ LOGIN ============ -->
+  <section id="screen-login" class="screen">
+    <div class="login-card">
+      <div class="brand-mark">GS</div>
+      <h1 class="brand-title">Scan Desk</h1>
+      <p class="brand-sub">Department stock-take scanning</p>
+      <form id="login-form">
+        <label class="field-label" for="login-password">Password</label>
+        <input class="field-input" id="login-password" type="password" autocomplete="current-password" required>
+        <button class="btn btn-primary btn-block" type="submit">Enter</button>
+        <p id="login-error" class="field-error" hidden></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ APP SHELL (shown once past login) ============ -->
+  <div id="shell" hidden>
+
+    <header class="topbar">
+      <div class="topbar-row">
+        <div class="brand-mark small">GS</div>
+        <div class="topbar-title">
+          <span id="topbar-dept">New session</span>
+          <span id="topbar-sub" class="topbar-sub"></span>
+        </div>
+      </div>
+      <div id="progress-strip" class="progress-strip" hidden>
+        <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
+        <div class="progress-tally">
+          <span><b id="tally-filled">0</b> filled</span>
+          <span class="tally-amber"><b id="tally-review">0</b> need review</span>
+          <span><b id="tally-blank">0</b> blank</span>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+
+      <!-- ---- STEP: NEW SESSION ---- -->
+      <section id="screen-new" class="screen">
+        <h2 class="screen-title">Start a stock take</h2>
+        <p class="screen-hint">Upload the blank department checklist exported from GSCORE, then start capturing pages.</p>
+
+        <form id="new-session-form">
+          <label class="field-label" for="checklist-file">Checklist CSV</label>
+          <input class="field-input" id="checklist-file" type="file" accept=".csv" required>
+          <p class="field-hint">Columns required: line_no, store_product_id, product_name, unit, category (system_eod_qty optional).</p>
+
+          <div class="field-grid">
+            <div>
+              <label class="field-label" for="meta-property">Property ID</label>
+              <input class="field-input" id="meta-property" type="text" placeholder="e.g. LDG-04">
+            </div>
+            <div>
+              <label class="field-label" for="meta-department">Department</label>
+              <input class="field-input" id="meta-department" type="text" placeholder="e.g. Main Bar" required>
+            </div>
+          </div>
+          <div class="field-grid">
+            <div>
+              <label class="field-label" for="meta-date">Stock-take date</label>
+              <input class="field-input" id="meta-date" type="date">
+            </div>
+            <div>
+              <label class="field-label" for="meta-id">Stock-take ID</label>
+              <input class="field-input" id="meta-id" type="text" placeholder="optional">
+            </div>
+          </div>
+
+          <label class="field-label" for="meta-enhance">Scan style</label>
+          <select class="field-input" id="meta-enhance">
+            <option value="color">Color (keep ink visible)</option>
+            <option value="bw">Black &amp; white (max contrast)</option>
+          </select>
+
+          <button class="btn btn-primary btn-block" type="submit">Start capturing</button>
+          <p id="new-session-error" class="field-error" hidden></p>
+        </form>
+      </section>
+
+      <!-- ---- STEP: CAPTURE ---- -->
+      <section id="screen-capture" class="screen">
+        <h2 class="screen-title">Capture pages</h2>
+        <p class="screen-hint">Snap each printed page like you would with a scanner app. Retake if the crop looks off.</p>
+
+        <div class="capture-buttons">
+          <button class="capture-btn" id="btn-camera">
+            <span class="capture-icon">&#128247;</span>
+            <span>Camera</span>
+          </button>
+          <button class="capture-btn" id="btn-library">
+            <span class="capture-icon">&#128193;</span>
+            <span>Photo library</span>
+          </button>
+          <button class="capture-btn" id="btn-pdf">
+            <span class="capture-icon">&#128196;</span>
+            <span>PDF / file</span>
+          </button>
+        </div>
+        <input type="file" id="input-camera" accept="image/*" capture="environment" hidden>
+        <input type="file" id="input-library" accept="image/*" multiple hidden>
+        <input type="file" id="input-pdf" accept=".pdf,image/*" multiple hidden>
+
+        <div id="upload-status" class="upload-status" hidden></div>
+
+        <div id="page-strip" class="page-strip"></div>
+
+        <button class="btn btn-secondary btn-block" id="btn-go-review" hidden>Go to review &rarr;</button>
+      </section>
+
+      <!-- ---- STEP: PAGE ACCEPT (align a page's rows to checklist lines) ---- -->
+      <section id="screen-accept" class="screen">
+        <button class="btn-back" id="btn-accept-back">&larr; Back to pages</button>
+        <h2 class="screen-title">Line up this page</h2>
+        <p class="screen-hint">Tell us the first checklist line printed on this page and how many product rows it has. We'll read the Counted column for those rows.</p>
+
+        <img id="accept-image" class="accept-image" alt="Scanned page">
+
+        <div class="field-grid">
+          <div>
+            <label class="field-label" for="accept-first-line">First line no. on page</label>
+            <input class="field-input" id="accept-first-line" type="number" min="1" required>
+          </div>
+          <div>
+            <label class="field-label" for="accept-row-count">Row count on page</label>
+            <input class="field-input" id="accept-row-count" type="number" min="1" required>
+          </div>
+        </div>
+
+        <details class="advanced-details">
+          <summary>Adjust count-column position</summary>
+          <div class="field-grid">
+            <div>
+              <label class="field-label" for="accept-col-left">Column starts at (% width)</label>
+              <input class="field-input" id="accept-col-left" type="number" min="0" max="100" value="78">
+            </div>
+            <div>
+              <label class="field-label" for="accept-header">Header height (% of page)</label>
+              <input class="field-input" id="accept-header" type="number" min="0" max="60" value="12">
+            </div>
+          </div>
+        </details>
+
+        <button class="btn btn-primary btn-block" id="btn-accept-run">Read this page</button>
+        <p id="accept-error" class="field-error" hidden></p>
+      </section>
+
+      <!-- ---- STEP: REVIEW ---- -->
+      <section id="screen-review" class="screen">
+        <div class="review-tabs">
+          <button class="review-tab active" data-filter="review">Needs review</button>
+          <button class="review-tab" data-filter="blank">Blank</button>
+          <button class="review-tab" data-filter="all">All lines</button>
+        </div>
+        <input class="field-input search-input" id="review-search" type="search" placeholder="Search product or line no.">
+        <div id="review-list" class="review-list"></div>
+        <button class="btn btn-secondary btn-block" id="btn-go-export">Go to export &rarr;</button>
+      </section>
+
+      <!-- ---- LINE DETAIL (modal-ish sheet) ---- -->
+      <section id="sheet-line" class="sheet" hidden>
+        <div class="sheet-inner">
+          <button class="btn-back" id="btn-line-close">&larr; Back to list</button>
+          <div class="line-crop-wrap">
+            <img id="line-crop-img" class="line-crop-img" alt="Handwritten count crop">
+          </div>
+          <div class="line-meta">
+            <span id="line-category" class="line-category"></span>
+            <h3 id="line-product" class="line-product"></h3>
+            <span id="line-linenum" class="line-linenum"></span>
+          </div>
+          <label class="field-label" for="line-qty-input">Physical qty</label>
+          <input class="field-input qty-input" id="line-qty-input" type="text" inputmode="decimal" placeholder="blank = skip">
+          <div class="line-actions">
+            <button class="btn btn-primary" id="btn-line-confirm">Confirm</button>
+            <button class="btn btn-secondary" id="btn-line-zero">Set 0 (dash/X)</button>
+            <button class="btn btn-ghost" id="btn-line-skip">Skip / leave blank</button>
+          </div>
+          <div class="line-nav">
+            <button class="btn btn-ghost" id="btn-line-prev">&larr; Prev</button>
+            <button class="btn btn-ghost" id="btn-line-next-empty">Next needing review &rarr;</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---- STEP: EXPORT ---- -->
+      <section id="screen-export" class="screen">
+        <h2 class="screen-title">Export</h2>
+        <div id="export-summary" class="export-summary"></div>
+
+        <div id="export-blocked" class="export-blocked" hidden>
+          <p>Some lines are still amber or red. Resolve them in Review, or export anyway and leave them blank.</p>
+          <label class="checkbox-row">
+            <input type="checkbox" id="allow-blanks-check">
+            Export with blanks for unresolved lines
+          </label>
+        </div>
+
+        <label class="field-label" for="session-notes">Session notes (margin notes, off-checklist items, damages)</label>
+        <textarea class="field-input" id="session-notes" rows="4" placeholder="Anything that doesn't belong on a checklist line goes here, not invented as a new product row."></textarea>
+        <button class="btn btn-secondary btn-block" id="btn-notes-save">Save notes</button>
+
+        <button class="btn btn-primary btn-block" id="btn-export-counts">Download counts.csv</button>
+        <button class="btn btn-secondary btn-block" id="btn-export-review">Download review_report.csv</button>
+        <button class="btn btn-secondary btn-block" id="btn-export-images">Download scanned pages (.zip)</button>
+        <p id="export-error" class="field-error" hidden></p>
+
+        <button class="btn btn-ghost btn-block" id="btn-back-to-capture">&larr; Capture more pages</button>
+      </section>
+
+    </main>
+
+    <nav class="bottombar" id="bottombar" hidden>
+      <button class="bottombar-btn" data-screen="capture">
+        <span class="bottombar-icon">&#128247;</span><span>Capture</span>
+      </button>
+      <button class="bottombar-btn" data-screen="review">
+        <span class="bottombar-icon">&#9998;</span><span>Review</span>
+      </button>
+      <button class="bottombar-btn" data-screen="export">
+        <span class="bottombar-icon">&#8681;</span><span>Export</span>
+      </button>
+    </nav>
+  </div>
+
+</div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>

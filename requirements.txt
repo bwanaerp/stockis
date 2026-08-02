@@ -1,0 +1,14 @@
+Flask==3.0.3
+Werkzeug==3.0.3
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+Pillow==10.4.0
+pypdfium2==4.30.0
+pytesseract==0.3.13
+gunicorn==22.0.0
+python-dotenv==1.0.1
+
+# Optional cloud OCR SDKs (install whichever provider you enable via OCR_PROVIDER)
+# google-cloud-documentai==2.29.2
+# boto3==1.34.144            # AWS Textract
+# azure-ai-formrecognizer==3.3.3
